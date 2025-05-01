@@ -1,66 +1,69 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState, useRef } from 'react';
+import { useDeleteFriend } from '../hooks/useDeleteFriend';
 
-// Ranglar ro'yxati
-const COLORS = [
-    'bg-red-500', 'bg-green-500', 'bg-blue-500', 'bg-yellow-500',
-    'bg-pink-500', 'bg-purple-500', 'bg-indigo-500', 'bg-teal-500', 'bg-orange-500'
-];
-
-// Random rang tanlash
-const getRandomColor = () => {
-    const randomIndex = Math.floor(Math.random() * COLORS.length);
-    return COLORS[randomIndex];
-};
-
-// Avatar komponenti
-const Avatar = ({ imgSrc, firstName = '', lastName = '' }) => {
-    const randomColor = useMemo(() => getRandomColor(), []);
-    const [imgError, setImgError] = useState(false);
-
-    const initials = `${firstName[0] || ''}${lastName[0] || ''}`.toUpperCase();
-
-    if (imgSrc && !imgError) {
+const Avatar = ({ type = 'initials', value, color = 'bg-blue-500' }) => {
+    if (type === 'image' && value) {
         return (
             <img
-                src={imgSrc}
-                alt="User Avatar"
                 className="w-12 h-12 rounded-full object-cover bg-gray-700"
+                src={value}
+                alt="User Avatar"
                 loading="lazy"
-                onError={() => setImgError(true)}
             />
         );
     }
-
+    const initials = typeof value === 'string' ? value.substring(0, 2).toUpperCase() : '??';
     return (
-        <div className={`w-12 h-12 rounded-full ${randomColor} flex items-center justify-center text-xl font-semibold text-white`}>
-            {initials || '??'}
+        <div className={`w-12 h-12 rounded-full ${color} flex items-center justify-center text-xl font-semibold text-white`}>
+            {initials}
         </div>
     );
 };
 
-// ChatItem komponenti
-const ChatItem = ({ chat, isActive, onSelect }) => {
+export default function ChatItem({ chat, isActive, onSelect }) {
+    const { deleteFriendId, loading } = useDeleteFriend();
+    const [showDelete, setShowDelete] = useState(false);
+    const timerRef = useRef(null);
+
     const backgroundClass = isActive ? 'bg-tg-active-bg' : 'hover:bg-tg-hover-bg';
     const previewColorClass = isActive ? 'text-white' : 'text-gray-400';
-    const activeClass = isActive ? 'bg-[#8774e1]' : '';
+    const active = isActive ? 'bg-[#8774e1]' : '';
+
+    const handleContextMenu = (e) => {
+        e.preventDefault();
+        setShowDelete(true);
+    };
+
+    const handleTouchStart = () => {
+        timerRef.current = setTimeout(() => {
+            setShowDelete(true);
+        }, 600);
+    };
+
+    const handleTouchEnd = () => {
+        clearTimeout(timerRef.current);
+    };
+
+    const handleDelete = async (e) => {
+        e.stopPropagation();
+        await deleteFriendId(chat._id);
+        setShowDelete(false);
+    };
 
     return (
         <li
-            className={`flex items-center space-x-3 p-2 ${backgroundClass} ${activeClass} cursor-pointer mx-1 rounded-lg`}
+            className={`relative flex items-center space-x-3 p-2 ${backgroundClass} cursor-pointer mx-1 rounded-lg ${active}`}
             onClick={() => onSelect(chat._id)}
+            onContextMenu={handleContextMenu}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
         >
             <div className="flex-shrink-0">
-                <Avatar
-                    imgSrc={chat.img}
-                    firstName={chat.firstName}
-                    lastName={chat.lastName}
-                />
+                <Avatar type={chat.avatarType} value={chat.firstName} color={chat.avatarColor} />
             </div>
             <div className="flex-grow min-w-0">
                 <div className="flex justify-between items-center mb-0.5">
-                    <span className="font-semibold text-white truncate">
-                        {chat.lastName} {chat.firstName}
-                    </span>
+                    <span className="font-semibold text-white truncate">{chat.firstName}</span>
                     <span className="text-xs text-white flex-shrink-0 ml-2">{chat.time}</span>
                 </div>
                 <div className="flex justify-between items-center">
@@ -74,8 +77,16 @@ const ChatItem = ({ chat, isActive, onSelect }) => {
                     )}
                 </div>
             </div>
+
+            {showDelete && (
+                <button
+                    className="absolute right-2 top-2 bg-red-600 text-white text-xs px-2 py-1 rounded z-10"
+                    onClick={handleDelete}
+                    disabled={loading}
+                >
+                    {loading ? "Deleting..." : "Delete"}
+                </button>
+            )}
         </li>
     );
-};
-
-export default ChatItem;
+}

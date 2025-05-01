@@ -7,7 +7,7 @@ import UserDetailsForm from './pages/UserDetailFill'
 import Home from './pages/Home'
 import userServices from './service/user.service'
 import RightText from './Components/RightText'
-import { send_socketID, socket } from './utils/socket.io'
+import { send_socketID } from './utils/socket.io'
 
 export default function App() {
       // user's email
