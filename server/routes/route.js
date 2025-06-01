@@ -31,6 +31,6 @@ router.get("/users/friends/add/:to", authMiddleware, addfriends)
 router.get("/users/friends/remove/:to", authMiddleware, remove_friend) // token va ochirilladigon odam idsi
 router.get("/users/find/:value", authMiddleware, searchuser)
 router.get("/users/delete/:id", authMiddleware, delete_user) //token 
-// router.patch("/chat", authMiddleware, editmessage)
+// router.patch("/chat", authMiddleware, editmessage) // token , newchat , message idsi
 
 export default router
