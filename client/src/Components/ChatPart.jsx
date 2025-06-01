@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { isEqual } from 'lodash';
 import ChatInput from '../Components/ChatInput';
 import { socket } from '../utils/socket.io';
 import { useDeleteMessage } from '../hooks/useDeleteMessage';
@@ -6,42 +7,62 @@ import { BiMessageX } from 'react-icons/bi';
 
 export default function ChatPart({ data, ChatId, loading, setRefreshTrigger }) {
   const [allMessages, setAllMessages] = useState([]);
-  const [showDelete, setShowDelete] = useState(null); // messageId for delete icon
+  const [showDelete, setShowDelete] = useState(null);
   const [pressTimer, setPressTimer] = useState(null);
   const bottomRef = useRef(null);
 
+  const previousChatId = useRef(null);
+  const previousMessages = useRef([]);
+
   const { deleteMessageId } = useDeleteMessage();
 
-  useEffect(() => {
-    if (data) {
-      const combined = [...(data.send || []), ...(data.receiver || [])]
-        .sort((a, b) => new Date(a.time) - new Date(b.time));
-      setAllMessages(combined);
-    }
-  }, [data]);
+  const combined = useMemo(() => {
+    if (!ChatId?._id || !data) return [];
+    const sent = data?.send?.filter((m) => m.to === ChatId?._id) || [];
+    const received = data?.receiver?.filter((m) => m.from === ChatId?._id) || [];
+    return [...sent, ...received].sort((a, b) => new Date(a.time) - new Date(b.time));
+  }, [ChatId?._id, data]);
 
   useEffect(() => {
-    const handleNewMessage = (msg) => setAllMessages((prev) => [...prev, msg]);
-    socket.on('new_message', handleNewMessage);
-    return () => socket.off('new_message', handleNewMessage);
-  }, []);
+    const isNewChat = previousChatId.current !== ChatId?._id;
+    const messagesChanged = !isEqual(previousMessages.current, combined);
+
+    if ((isNewChat || messagesChanged) && !loading) {
+      previousChatId.current = ChatId?._id;
+      previousMessages.current = combined;
+      setAllMessages(combined);
+    }
+  }, [ChatId?._id, combined, loading]);
+
+    useEffect(() => {
+      const handleNewMessage = (msg) => {
+        if ((msg.to === ChatId?._id || msg.from === ChatId?._id) &&
+            !allMessagesRef.current.some((m) => m._id === msg._id)) {
+          setAllMessages((prev) => [...prev, msg]);
+        }
+      };
+
+      socket.on('new_message', handleNewMessage);
+      return () => socket.off('new_message', handleNewMessage);
+    }, [ChatId?._id]);
+
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [allMessages]);
 
-  const handleDelete = (id) => {
+  const handleDelete = useCallback((id) => {
     deleteMessageId(id);
-    setAllMessages((prev) => prev.filter((msg) => msg._id !== id));
-  };
+    setAllMessages((prev) => prev.filter((m) => m._id !== id));
+  }, [deleteMessageId]);
 
-  const handleMouseDown = (id) => {
-    setPressTimer(setTimeout(() => setShowDelete(id), 800)); // 800ms for long press
-  };
+  const handleMouseDown = useCallback((id) => {
+    setPressTimer(setTimeout(() => setShowDelete(id), 800));
+  }, []);
 
-  const handleMouseUp = () => clearTimeout(pressTimer);
+  const handleMouseUp = useCallback(() => clearTimeout(pressTimer), [pressTimer]);
 
-  if (loading) {
+  if (loading && allMessages.length === 0) {
     return (
       <main className="mainBG flex-grow bg-tg-bg flex items-center justify-center p-4">
         <p className="text-gray-400">Loading chat...</p>
@@ -51,7 +72,7 @@ export default function ChatPart({ data, ChatId, loading, setRefreshTrigger }) {
 
   return (
     <main className="mainBG flex-grow bg-tg-bg flex flex-col items-center justify-between p-4 overflow-hidden">
-      {allMessages.length ? (
+      {allMessages.length > 0 ? (
         <div className="flex flex-col w-full h-[90%] z-10 overflow-y-auto p-4">
           {allMessages.map((msg) => {
             const isOwn = msg.to === ChatId?._id;
