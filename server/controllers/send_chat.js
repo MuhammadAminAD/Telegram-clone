@@ -15,15 +15,14 @@ export const send_chat = async (req, res) => {
 
             const findto = await UserSchema.findById(to)
 
-            if (findto && findto.socketID) {
-                  console.log(findto);
-
-                  io.to(findto.socketID).emit('new_message', {
+            if (findto) {
+                  const roomName = `user_${to}`;
+                  io.to(roomName).emit('new_message', {
                         from: req.user._id,
                         text,
-                        time
+                        time,
                   });
-                  console.log("Xabar yuborildi:", findto.socketID);
+                  console.log("Xabar yuborildi to room:", roomName);
             }
 
             await chat.save();

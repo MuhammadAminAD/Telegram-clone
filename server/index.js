@@ -34,9 +34,19 @@ io.on('connection', (socket) => {
 
       socket.on('isOnline', async (data) => {
             try {
-                  await UserSchema.findOneAndUpdate({ email: data.email }, { socketID: socket.id });
+                  const user = await UserSchema.findOneAndUpdate(
+                        { email: data.email },
+                        { socketID: socket.id },
+                        { new: true }
+                  );
+
+                  if (user && user._id) {
+                        const roomName = `user_${user._id}`;
+                        socket.join(roomName);
+                        console.log(`Socket ${socket.id} joined room: ${roomName}`);
+                  }
             } catch (error) {
-                  console.error('Error updating user socketID:', error);
+                  console.error('Error updating user socketID or joining room:', error);
             }
       });
 
